@@ -1,0 +1,12 @@
+[submodule "avs/lib/forge-std"]
+	path = avs/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "ai-avs/lib/forge-std"]
+	path = ai-avs/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "ai-avs/lib/eigenlayer-contracts"]
+	path = ai-avs/lib/eigenlayer-contracts
+	url = https://github.com/Layr-Labs/eigenlayer-contracts
+[submodule "ai-avs/lib/solady"]
+	path = ai-avs/lib/solady
+	url = https://github.com/Vectorized/solady
