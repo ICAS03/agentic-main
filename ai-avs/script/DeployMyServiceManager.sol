@@ -4,9 +4,9 @@ pragma solidity ^0.8.26;
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import {MyServiceManager} from "../src/MyServiceManager.sol";
-import {IDelegationManager} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
-import {AVSDirectory} from "eigenlayer-contracts/src/contracts/core/AVSDirectory.sol";
-import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/ISignatureUtils.sol";
+import {IDelegationManager} from "/Users/ivychung/Downloads/agentic-main/ai-avs/lib/eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
+import {AVS_DIRECTORY} from "/Users/ivychung/Downloads/agentic-main/ai-avs/lib/eigenlayer-contracts/src/contracts/core/AVSDirectory.sol";
+import {ISignatureUtils} from "/Users/ivychung/Downloads/agentic-main/ai-avs/lib/eigenlayer-contracts/src/contracts/interfaces/ISignatureUtils.sol";
 
 contract DeployMyServiceManager is Script {
     // Eigen Core Contracts
