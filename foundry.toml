@@ -6,4 +6,6 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
     "eigenlayer-contracts/=lib/eigenlayer-contracts/src/",
     "solady/=lib/solady/src/"
-] 
+]
+ffi = true
+fs_permissions = [{ access = "read", path = "./.env" }] 

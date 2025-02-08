@@ -6,6 +6,7 @@ import {
 } from "@web3modal/ethers/react";
 import ContractService from "../services/contractService";
 import { ethers, BrowserProvider } from "ethers";
+import ChatMessage from './ChatMessage';
 
 function Chat() {
   const [messages, setMessages] = useState([]);
@@ -104,6 +105,42 @@ function Chat() {
     }
   };
 
+  // Update the extractSymbol function to handle more variations
+  const extractSymbol = (message) => {
+    const symbols = {
+      'eth': 'ETH',
+      'ethereum': 'ETH',
+      'btc': 'BTC',
+      'bitcoin': 'BTC',
+      'sol': 'SOL',
+      'solana': 'SOL',
+      'avax': 'AVAX',
+      'avalanche': 'AVAX',
+      'dot': 'DOT',
+      'polkadot': 'DOT',
+      'ada': 'ADA',
+      'cardano': 'ADA'
+    };
+
+    // Convert message to lowercase for case-insensitive matching
+    const messageLower = message.toLowerCase();
+    
+    // First check for explicit chart requests
+    const chartKeywords = ['chart', 'price', 'trading', 'tradingview'];
+    const hasChartRequest = chartKeywords.some(keyword => messageLower.includes(keyword));
+    
+    if (hasChartRequest) {
+      // Look for any symbol in the message
+      for (const [key, value] of Object.entries(symbols)) {
+        if (messageLower.includes(key)) {
+          return value;
+        }
+      }
+    }
+    
+    return null; // Return null if no symbol is found
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || !isConnected || !contractService) return;
@@ -113,82 +150,69 @@ function Chat() {
       // Create task on blockchain
       const { hash, task, taskIndex } = await contractService.createTask(input);
 
-      // Update messages with user input and transaction hash
+      // Add user message with transaction hash
       setMessages((prev) => [
         ...prev,
         {
           role: "user",
-          content: `${input}\n\nTransaction submitted! Hash: ${hash}`,
-        },
+          content: `${input}\n\nTransaction submitted! Hash: ${hash}`
+        }
       ]);
 
-      // Prompt AI to analyze the input and check for transfer commands
-      const aiPrompt = `Analyze the following input and check if it contains a transfer command. If it does, please respond with the transfer details in the following format: "Transfer to: <recipient_address>, Amount: <amount>". Input: "${input}". Please do not add any extra information. If it does not contain a transfer command , then just reply to the following input such as saying "Hi , how can I help you".`;
+      // Improved chart request detection
+      const chartKeywords = ['chart', 'price', 'trading', 'tradingview'];
+      const isChartRequest = chartKeywords.some(keyword => input.toLowerCase().includes(keyword));
+      const requestedSymbol = extractSymbol(input);
+
+      const aiPrompt = `Analyze the following input: "${input}". 
+      If it contains a request for a cryptocurrency chart or price, respond with "Showing chart for ${requestedSymbol || 'ETH'}".
+      If it contains a transfer command, respond with: "Transfer to: <recipient_address>, Amount: <amount>".
+      Otherwise, respond naturally.`;
+      
       const aiResponse = await contractService.getAIResponse(aiPrompt);
-
-      // Log the AI response for debugging
-      console.log("AI Response:", aiResponse);
-
-      // Check if the AI response indicates a transfer
-      const transferDetails = aiResponse.match(
-        /Transfer to: (\S+), Amount: (\d+(\.\d+)?)/
-      );
-
-      // Check if transferDetails is null
-      if (transferDetails) {
-        const recipient = transferDetails[1];
-        const amount = transferDetails[2];
-        await handleTransfer(recipient, amount); // Call the transfer function
-        return; // Exit early after handling transfer
-      } else {
-        console.log("No transfer details found in AI response.");
-        const recordHash = await contractService.createRecord(input); // Create a record of the transaction
+      const recordHash = await contractService.createRecord(input);
+      
+      // Handle chart requests
+      if (isChartRequest && requestedSymbol) {
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: `Transaction recorded on-chain. Hash: ${recordHash}`,
+            content: `Showing chart for ${requestedSymbol}\n\nTransaction submitted! Hash: ${recordHash}`
           },
+          {
+            role: "assistant",
+            content: `/chart ${requestedSymbol}`
+          }
+        ]);
+      } else {
+        // Handle regular responses
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `${aiResponse}\n\nTransaction submitted! Hash: ${recordHash}`
+          }
         ]);
       }
 
-      // Create signature for the response
+      // Create and submit signature (without showing hash)
       const signature = await contractService.createSignature(
         await contractService.provider.getSigner(),
         aiResponse,
         task.contents
       );
 
-      // Log the arguments for debugging
-      console.log("Responding to task with arguments:", {
-        task: {
-          contents: task.contents, // Ensure this is a simple string
-          taskCreatedBlock: task.taskCreatedBlock, // Ensure this is a uint32
-        },
-        taskIndex, // Ensure this is a uint32
-        response: aiResponse, // Ensure this is a simple string
-        signature, // Ensure this is a bytes string
-      });
-
-      // Submit AI response to blockchain
-      const responseHash = await contractService.respondToTask(
+      await contractService.respondToTask(
         {
-          contents: task.contents, // Ensure this is a simple string
-          taskCreatedBlock: task.taskCreatedBlock, // Ensure this is a uint32
+          contents: task.contents,
+          taskCreatedBlock: task.taskCreatedBlock,
         },
-        taskIndex, // Ensure this is a uint32
-        aiResponse, // Ensure this is a simple string
-        signature // Ensure this is a bytes string
+        taskIndex,
+        aiResponse,
+        signature
       );
 
-      // Update messages with AI response and its transaction hash
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `${aiResponse}\n\nTransaction submitted! Hash: ${responseHash}`,
-        },
-      ]);
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
@@ -211,24 +235,11 @@ function Chat() {
         {/* Chat messages area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message, index) => (
-            <div
+            <ChatMessage
               key={index}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[80%] p-3 rounded-lg whitespace-pre-wrap ${
-                  message.role === "user"
-                    ? "bg-blue-500 text-white"
-                    : message.role === "system"
-                    ? "bg-gray-500 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 dark:text-white"
-                }`}
-              >
-                {message.content}
-              </div>
-            </div>
+              role={message.role}
+              content={message.content}
+            />
           ))}
           <div ref={messagesEndRef} />
         </div>

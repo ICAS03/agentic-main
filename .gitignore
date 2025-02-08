@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# new additions
+.env
+cache/
+out/
+broadcast/
+
