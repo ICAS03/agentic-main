@@ -13,6 +13,7 @@ export default async function handler(req, res) {
             // Fetch token data from Coinbase
             const coinbaseResponse = await fetch('https://api.exchange.coinbase.com/products/volume-summary');
             const tokenData = await coinbaseResponse.json();
+            console.log("Token Data: ",tokenData);
 
             // Sort tokens by volume
             const sortedTokens = tokenData.sort((a, b) => {
@@ -24,10 +25,12 @@ export default async function handler(req, res) {
                               parseFloat(b.conversion_volume_24hour || '0');
                 return bVolume - aVolume;
             });
+            console.log("sortedTokens: ",sortedTokens);
 
             // Extract number from query (e.g., "top 5" -> 5)
             const numberMatch = content.match(/\d+/);
             const limit = numberMatch ? parseInt(numberMatch[0]) : 10;
+
 
             // Prepare data for AI
             const topTokens = sortedTokens.slice(0, limit);
