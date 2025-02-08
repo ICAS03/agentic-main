@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/ISignatureUtils.sol";
-import {IAVSDirectory} from "eigenlayer-contracts/src/contracts/interfaces/IAVSDirectory.sol";
+import {ISignatureUtils} from "../lib/eigenlayer-contracts/src/contracts/interfaces/ISignatureUtils.sol";
+import {IAVSDirectory} from "../lib/eigenlayer-contracts/src/contracts/interfaces/IAVSDirectory.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 
 contract MyServiceManager {
@@ -24,6 +24,8 @@ contract MyServiceManager {
         string response,
         address operator
     );
+    
+    event FundsTransferred(address indexed recipient, uint256 amount); 
 
     // Types
     struct Task {
@@ -41,6 +43,13 @@ contract MyServiceManager {
     constructor(address _avsDirectory) {
         avsDirectory = _avsDirectory;
     }
+
+    // Function to receive ETH directly
+    receive() external payable {}
+
+    // Fallback function for unexpected calls
+    fallback() external payable {}
+
 
     // Register Operator
     function registerOperatorToAVS(
@@ -110,4 +119,10 @@ contract MyServiceManager {
         // emitting event
         emit TaskResponded(referenceTaskIndex, task, response, msg.sender);
     }
+
+    function transferFunds(address payable recipient, uint256 amount) external payable {
+    require(address(this).balance >= amount, "Insufficient balance");
+    (bool success, ) = recipient.call{value: amount}("");
+    require(success, "Transfer failed");
+}
 }

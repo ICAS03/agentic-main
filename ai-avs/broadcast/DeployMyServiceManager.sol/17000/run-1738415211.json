@@ -4,11 +4,9 @@
       "hash": "0xb13cded54f7b7b0a756c83ff7a930fd32f143996d92e2cd35b96aaebb5185ded",
       "transactionType": "CREATE",
       "contractName": "MyServiceManager",
-      "contractAddress": "0xde1e04366d466bd9605447c9536fc0c907dcfb55",
+      "contractAddress": "0xCdeE1275F3b94242BfEA776fB4805c311773f482",
       "function": null,
-      "arguments": [
-        "0x055733000064333CaDDbC92763c58BF0192fFeBf"
-      ],
+      "arguments": ["0x055733000064333CaDDbC92763c58BF0192fFeBf"],
       "transaction": {
         "from": "0x9787cff89d30bb6ae87aaad9b3a02e77b5caa8f1",
         "gas": "0x1df61f",
