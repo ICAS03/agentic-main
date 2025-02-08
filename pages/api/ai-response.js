@@ -13,7 +13,6 @@ export default async function handler(req, res) {
             // Fetch token data from Coinbase
             const coinbaseResponse = await fetch('https://api.exchange.coinbase.com/products/volume-summary');
             const tokenData = await coinbaseResponse.json();
-            console.log("Token Data: ",tokenData);
 
             // Sort tokens by volume
             const sortedTokens = tokenData.sort((a, b) => {
@@ -25,22 +24,32 @@ export default async function handler(req, res) {
                               parseFloat(b.conversion_volume_24hour || '0');
                 return bVolume - aVolume;
             });
-            console.log("sortedTokens: ",sortedTokens);
 
             // Extract number from query (e.g., "top 5" -> 5)
             const numberMatch = content.match(/\d+/);
             const limit = numberMatch ? parseInt(numberMatch[0]) : 10;
 
-
-            // Prepare data for AI
+            // Prepare data for AI in a more structured format
             const topTokens = sortedTokens.slice(0, limit);
-            const tokenPrompt = `Based on the latest Coinbase volume data, here are the top ${limit} trending tokens:\n\n` + 
-                              topTokens.map(token => ({
-                                  pair: token.display_name,
-                                  volume: (parseFloat(token.spot_volume_24hour || '0') + 
-                                         parseFloat(token.rfq_volume_24hour || '0') + 
-                                         parseFloat(token.conversion_volume_24hour || '0')).toFixed(2)
-                              }));
+            const formattedTokenData = topTokens.map((token, index) => {
+                const totalVolume = (
+                    parseFloat(token.spot_volume_24hour || '0') + 
+                    parseFloat(token.rfq_volume_24hour || '0') + 
+                    parseFloat(token.conversion_volume_24hour || '0')
+                ).toFixed(2);
+
+                return `${index + 1}. Trading Pair: ${token.display_name}
+                   Base Currency: ${token.base_currency}
+                   Quote Currency: ${token.quote_currency}
+                   24h Total Volume: ${totalVolume}
+                   Markets: ${token.market_types.join(', ')}
+                   Spot Volume 24h: ${token.spot_volume_24hour || '0'}
+                   RFQ Volume 24h: ${token.rfq_volume_24hour || '0'}
+                   Conversion Volume 24h: ${token.conversion_volume_24hour || '0'}\n`;
+            }).join('\n');
+
+            const tokenPrompt = `Here is the detailed volume data for the top ${limit} trending tokens on Coinbase:\n\n${formattedTokenData}\n` +
+                              `Please present this information in a clear, numbered list format, including the trading pair, total 24h volume, and available markets for each token.`;
 
             // Get AI response with token data
             const response = await ollama.chat({
@@ -48,11 +57,11 @@ export default async function handler(req, res) {
                 messages: [
                     { 
                         role: 'system', 
-                        content: 'You are a helpful assistant that provides information about cryptocurrency trading volumes. When presenting token data, always include the trading pair and 24h volume, and format the response in a clear, numbered list.'
+                        content: 'You are a cryptocurrency market analyst. When presenting token data, format it as a numbered list. For each token, include: 1) Trading pair name, 2) Total 24h volume, 3) Available markets. Use proper formatting and numbers. Make it easy to read.'
                     },
                     { 
                         role: 'user', 
-                        content: `Please analyze and present this token volume data: ${JSON.stringify(tokenPrompt)}`
+                        content: tokenPrompt
                     }
                 ]
             });
@@ -73,4 +82,4 @@ export default async function handler(req, res) {
         console.error('AI Response Error:', error);
         res.status(500).json({ error: 'Failed to get AI response' });
     }
-} 
+}

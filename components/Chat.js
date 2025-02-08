@@ -17,11 +17,9 @@ function Chat() {
   const [contractService, setContractService] = useState(null);
 
   useEffect(() => {
-    console.log("Wallet provider changed:", walletProvider);
     if (walletProvider) {
       const service = new ContractService(walletProvider);
       setContractService(service);
-      console.log("Contract service initialized:", service);
 
       // Listen for new tasks and responses
       const unsubscribeTask = service.listenToNewTasks((taskIndex, task) => {
@@ -30,7 +28,6 @@ function Chat() {
 
       const unsubscribeResponse = service.listenToResponses(
         (taskIndex, response) => {
-          console.log("New response received:", taskIndex, response);
           setMessages((prev) => {
             // Find the loading message and replace it
             const newMessages = prev.filter((msg) => !msg.isLoading);
@@ -47,7 +44,6 @@ function Chat() {
       );
 
       return () => {
-        console.log("Unsubscribing from tasks and responses");
         unsubscribeTask();
         unsubscribeResponse();
       };
@@ -55,7 +51,6 @@ function Chat() {
   }, [walletProvider]);
 
   const scrollToBottom = () => {
-    console.log("Scrolling to bottom of messages");
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -64,7 +59,6 @@ function Chat() {
   }, [messages]);
 
   const handleTransfer = async (recipient, amount) => {
-    console.log("Handling transfer to:", recipient, "Amount:", amount);
     if (!recipient || !amount || !isConnected || !contractService) return;
 
     try {
@@ -79,8 +73,14 @@ function Chat() {
       }
 
       const formattedAmount = ethers.parseEther(amount.toString());
-      console.log("Transferring funds:", { recipient, formattedAmount });
       await contractService.transferFunds(recipient, formattedAmount);
+      /*contractService.contract.on("TransferSuccess", (from, to, amount) => {
+        console.log(
+          `🔔 Transfer Event: ${from} → ${to} | ${ethers.formatEther(
+            amount
+          )} ETH`
+        );
+      });*/
 
       setMessages((prev) => [
         ...prev,
@@ -106,14 +106,12 @@ function Chat() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form submitted with input:", input);
     if (!input.trim() || !isConnected || !contractService) return;
 
     setIsLoading(true);
     try {
       // Create task on blockchain
       const { hash, task, taskIndex } = await contractService.createTask(input);
-      console.log("Task created with hash:", hash, "Task:", task, "Task Index:", taskIndex);
 
       // Update messages with user input and transaction hash
       setMessages((prev) => [
@@ -127,24 +125,24 @@ function Chat() {
       // Prompt AI to analyze the input and check for transfer commands
       const aiPrompt = `Analyze the following input and check if it contains a transfer command. If it does, please respond with the transfer details in the following format: "Transfer to: <recipient_address>, Amount: <amount>". Input: "${input}". Please do not add any extra information. If it does not contain a transfer command , then just reply to the following input such as saying "Hi , how can I help you".`;
       const aiResponse = await contractService.getAIResponse(aiPrompt);
+
+      // Log the AI response for debugging
       console.log("AI Response:", aiResponse);
 
       // Check if the AI response indicates a transfer
       const transferDetails = aiResponse.match(
-        /Transfer to: (\S+), Amount: (\d+(\.\d+)?)/ 
+        /Transfer to: (\S+), Amount: (\d+(\.\d+)?)/
       );
 
       // Check if transferDetails is null
       if (transferDetails) {
         const recipient = transferDetails[1];
         const amount = transferDetails[2];
-        console.log("Transfer details found:", { recipient, amount });
         await handleTransfer(recipient, amount); // Call the transfer function
         return; // Exit early after handling transfer
       } else {
         console.log("No transfer details found in AI response.");
         const recordHash = await contractService.createRecord(input); // Create a record of the transaction
-        console.log("Transaction recorded on-chain. Hash:", recordHash);
         setMessages((prev) => [
           ...prev,
           {
@@ -160,7 +158,6 @@ function Chat() {
         aiResponse,
         task.contents
       );
-      console.log("Signature created:", signature);
 
       // Log the arguments for debugging
       console.log("Responding to task with arguments:", {
@@ -183,7 +180,6 @@ function Chat() {
         aiResponse, // Ensure this is a simple string
         signature // Ensure this is a bytes string
       );
-      console.log("AI response submitted with hash:", responseHash);
 
       // Update messages with AI response and its transaction hash
       setMessages((prev) => [
@@ -206,7 +202,6 @@ function Chat() {
     } finally {
       setInput("");
       setIsLoading(false);
-      console.log("Input cleared and loading state reset.");
     }
   };
 
@@ -247,10 +242,7 @@ function Chat() {
             <input
               type="text"
               value={input}
-              onChange={(e) => {
-                console.log("Input changed:", e.target.value);
-                setInput(e.target.value);
-              }}
+              onChange={(e) => setInput(e.target.value)}
               placeholder={
                 isConnected
                   ? "Type your message..."
