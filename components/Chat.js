@@ -60,6 +60,18 @@ const TOP_COINS = [
   }
 ];
 
+const getTokenIcon = (symbol, isToken = false) => {
+  // Clean up the symbol by removing USD, USDC, USDT suffixes
+  const cleanSymbol = symbol.split('-')[0].toLowerCase();
+  
+  // For tokens, try to get logo from CoinGecko
+  if (isToken) {
+    return `https://assets.coincap.io/assets/icons/${cleanSymbol}@2x.png`;
+  }
+  // For coins, keep using the cryptocurrency-icons
+  return `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol}.png`;
+};
+
 function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -242,11 +254,15 @@ function Chat() {
           .slice(0, limit);
       }
 
-      // For tokens, filter out the major coins that are in TOP_COINS
+      // For tokens, filter out the major coins and problematic tokens
       const majorCoinSymbols = TOP_COINS.map(coin => coin.baseCurrency);
-      const tokenData = volumeData.filter(token => 
-        !majorCoinSymbols.includes(token.base_currency)
-      );
+      const tokenData = volumeData.filter(token => {
+        // Filter out major coins and tokens with problematic symbols
+        const isNotMajorCoin = !majorCoinSymbols.includes(token.base_currency);
+        const hasValidSymbol = !token.base_currency.includes('USD');
+        const hasVolume = parseFloat(token.spot_volume_24hour || '0') > 0;
+        return isNotMajorCoin && hasValidSymbol && hasVolume;
+      });
 
       const sortedTokens = tokenData.sort((a, b) => {
         const aVolume = parseFloat(a.spot_volume_24hour || '0') + 
@@ -419,7 +435,6 @@ function Chat() {
                         <div className="flex items-center">
                           <button
                             onClick={() => {
-                              // Add the chart message when clicking a token
                               setMessages(prev => [
                                 ...prev,
                                 {
@@ -431,19 +446,41 @@ function Chat() {
                                   content: `/chart ${token.baseCurrency}`
                                 }
                               ]);
-                              // Scroll to the new chart
                               setTimeout(scrollToBottom, 100);
                             }}
-                            className="bg-blue-500 text-white rounded-lg px-4 py-2 mr-4 hover:bg-blue-600"
+                            className="flex items-center bg-blue-500 text-white rounded-lg px-4 py-2 mr-4 hover:bg-blue-600"
                           >
+                            <img
+                              src={getTokenIcon(token.baseCurrency, message.displayType === 'token')}
+                              alt={token.name}
+                              className="w-6 h-6 mr-2"
+                              onError={(e) => {
+                                if (message.displayType === 'token') {
+                                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmYTUwMCIgZD0iTTEyIDJDNi40NyAyIDIgNi40NyAyIDEyczQuNDcgMTAgMTAgMTAgMTAtNC40NyAxMC0xMFMxNy41MyAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjxwYXRoIGZpbGw9IiNmZmE1MDAiIGQ9Ik0xMiA2Yy0zLjMxIDAtNiAyLjY5LTYgNnMyLjY5IDYgNiA2IDYtMi42OSA2LTYtMi42OS02LTYtNnptMCAxMGMtMi4yMSAwLTQtMS43OS00LTRzMS43OS00IDQtNCA0IDEuNzkgNCA0LTEuNzkgNC00IDR6Ii8+PC9zdmc+';
+                                } else {
+                                  e.target.src = 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/generic.png';
+                                }
+                                e.target.onerror = null;
+                              }}
+                            />
                             {token.name}
                           </button>
-                          <span className="text-sm">
-                            Volume: {token.totalVolume}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">
+                              Volume: {parseFloat(token.totalVolume).toLocaleString('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                              })}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-300">
+                              {token.markets}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-sm text-gray-500 dark:text-gray-300">
-                          {token.markets}
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-300">
+                          {token.quoteCurrency}
                         </span>
                       </div>
                     ))}
