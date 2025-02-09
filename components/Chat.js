@@ -8,10 +8,64 @@ import ContractService from "../services/contractService";
 import { ethers, BrowserProvider } from "ethers";
 import ChatMessage from './ChatMessage';
 
+// Update the TOP_COINS list with current trending order
+const TOP_COINS = [
+  {
+    name: 'Bitcoin',
+    baseCurrency: 'BTC',
+    quoteCurrency: 'USDT',
+    markets: 'Spot, Futures',
+  },
+  {
+    name: 'Ethereum',
+    baseCurrency: 'ETH',
+    quoteCurrency: 'USDT',
+    markets: 'Spot, Futures',
+  },
+  {
+    name: 'Solana',
+    baseCurrency: 'SOL',
+    quoteCurrency: 'USDT',
+    markets: 'Spot, Futures',
+  },
+  {
+    name: 'Avalanche',
+    baseCurrency: 'AVAX',
+    quoteCurrency: 'USDT',
+    markets: 'Spot',
+  },
+  {
+    name: 'Polygon',
+    baseCurrency: 'MATIC',
+    quoteCurrency: 'USDT',
+    markets: 'Spot',
+  },
+  {
+    name: 'Cardano',
+    baseCurrency: 'ADA',
+    quoteCurrency: 'USDT',
+    markets: 'Spot',
+  },
+  {
+    name: 'Polkadot',
+    baseCurrency: 'DOT',
+    quoteCurrency: 'USDT',
+    markets: 'Spot',
+  },
+  {
+    name: 'Chainlink',
+    baseCurrency: 'LINK',
+    quoteCurrency: 'USDT',
+    markets: 'Spot',
+  }
+];
+
 function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [trendingCoins, setTrendingCoins] = useState([]);
+  const [trendingTokens, setTrendingTokens] = useState([]);
   const messagesEndRef = useRef(null);
   const { walletProvider } = useWeb3ModalProvider();
   const { address, isConnected } = useWeb3ModalAccount();
@@ -141,14 +195,95 @@ function Chat() {
     return null; // Return null if no symbol is found
   };
 
+  // Update the isTrendingRequest function to detect type
+  const isTrendingRequest = (input) => {
+    const trendingKeywords = ['trending', 'top', 'popular'];
+    const lowercaseInput = input.toLowerCase();
+    
+    // Check if it's a trending request
+    const isTrending = trendingKeywords.some(trend => lowercaseInput.includes(trend));
+    
+    // Determine if it's for coins or tokens
+    const isCoins = lowercaseInput.includes('coin') || lowercaseInput.includes('coins');
+    const isTokens = lowercaseInput.includes('token') || lowercaseInput.includes('tokens');
+    
+    return {
+      isTrending,
+      type: isCoins ? 'coin' : isTokens ? 'token' : null
+    };
+  };
+
+  // Update the fetchTrendingTokens function
+  const fetchTrendingTokens = async (limit, type = 'token') => {
+    try {
+      const response = await fetch('/api/coinbase-volume');
+      if (!response.ok) throw new Error('Failed to fetch volume data');
+      const volumeData = await response.json();
+
+      // If requesting coins, return from predefined TOP_COINS list
+      if (type === 'coin') {
+        const coinsWithVolume = TOP_COINS.map(coin => {
+          const volumeInfo = volumeData.find(v => 
+            v.base_currency === coin.baseCurrency
+          );
+          return {
+            ...coin,
+            totalVolume: volumeInfo ? (
+              parseFloat(volumeInfo.spot_volume_24hour || '0') + 
+              parseFloat(volumeInfo.rfq_volume_24hour || '0') + 
+              parseFloat(volumeInfo.conversion_volume_24hour || '0')
+            ).toFixed(2) : '0'
+          };
+        });
+
+        // Sort by volume and return limited number
+        return coinsWithVolume
+          .sort((a, b) => parseFloat(b.totalVolume) - parseFloat(a.totalVolume))
+          .slice(0, limit);
+      }
+
+      // For tokens, filter out the major coins that are in TOP_COINS
+      const majorCoinSymbols = TOP_COINS.map(coin => coin.baseCurrency);
+      const tokenData = volumeData.filter(token => 
+        !majorCoinSymbols.includes(token.base_currency)
+      );
+
+      const sortedTokens = tokenData.sort((a, b) => {
+        const aVolume = parseFloat(a.spot_volume_24hour || '0') + 
+                      parseFloat(a.rfq_volume_24hour || '0') + 
+                      parseFloat(a.conversion_volume_24hour || '0');
+        const bVolume = parseFloat(b.spot_volume_24hour || '0') + 
+                      parseFloat(b.rfq_volume_24hour || '0') + 
+                      parseFloat(b.conversion_volume_24hour || '0');
+        return bVolume - aVolume;
+      });
+
+      const topTokens = sortedTokens.slice(0, limit);
+      return topTokens.map((token) => ({
+        name: token.display_name,
+        baseCurrency: token.base_currency,
+        quoteCurrency: token.quote_currency,
+        totalVolume: (
+          parseFloat(token.spot_volume_24hour || '0') + 
+          parseFloat(token.rfq_volume_24hour || '0') + 
+          parseFloat(token.conversion_volume_24hour || '0')
+        ).toFixed(2),
+        markets: token.market_types.join(', ')
+      }));
+    } catch (error) {
+      console.error('Error fetching trending data:', error);
+      return [];
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || !isConnected || !contractService) return;
 
     setIsLoading(true);
     try {
-      // Create task on blockchain
       const { hash, task, taskIndex } = await contractService.createTask(input);
+      let aiResponse = '';
 
       // Add user message with transaction hash
       setMessages((prev) => [
@@ -159,44 +294,77 @@ function Chat() {
         }
       ]);
 
-      // Improved chart request detection
-      const chartKeywords = ['chart', 'price', 'trading', 'tradingview'];
-      const isChartRequest = chartKeywords.some(keyword => input.toLowerCase().includes(keyword));
-      const requestedSymbol = extractSymbol(input);
+      // Check for trending tokens request using the new function
+      if (isTrendingRequest(input).isTrending) {
+        const { type } = isTrendingRequest(input);
+        if (type) {
+          const numberMatch = input.match(/\d+/);
+          const limit = numberMatch ? parseInt(numberMatch[0]) : 10;
+          const trendingData = await fetchTrendingTokens(limit, type);
+          
+          if (trendingData.length > 0) {
+            // Update the appropriate state based on type
+            if (type === 'coin') {
+              setTrendingCoins(trendingData);
+            } else {
+              setTrendingTokens(trendingData);
+            }
 
-      const aiPrompt = `Analyze the following input: "${input}". 
-      If it contains a request for a cryptocurrency chart or price, respond with "Showing chart for ${requestedSymbol || 'ETH'}".
-      If it contains a transfer command, respond with: "Transfer to: <recipient_address>, Amount: <amount>".
-      Otherwise, respond naturally.`;
-      
-      const aiResponse = await contractService.getAIResponse(aiPrompt);
-      const recordHash = await contractService.createRecord(input);
-      
-      // Handle chart requests
-      if (isChartRequest && requestedSymbol) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `Showing chart for ${requestedSymbol}\n\nTransaction submitted! Hash: ${recordHash}`
-          },
-          {
-            role: "assistant",
-            content: `/chart ${requestedSymbol}`
+            const recordHash = await contractService.createRecord(input);
+            aiResponse = `Here are the top ${limit} trending ${type}s`;
+            
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `${aiResponse}\n\nTransaction submitted! Hash: ${recordHash}`,
+                showTrendingTokens: true,
+                displayType: type,
+                trendingData: trendingData // Store the data with the message
+              }
+            ]);
           }
-        ]);
+        }
       } else {
-        // Handle regular responses
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `${aiResponse}\n\nTransaction submitted! Hash: ${recordHash}`
-          }
-        ]);
+        // For non-trending token requests, don't clear the tokens immediately
+        const chartKeywords = ['chart', 'price', 'trading', 'tradingview'];
+        const isChartRequest = chartKeywords.some(keyword => input.toLowerCase().includes(keyword));
+        const requestedSymbol = extractSymbol(input);
+
+        if (isChartRequest && requestedSymbol) {
+          const recordHash = await contractService.createRecord(input);
+          aiResponse = `Showing chart for ${requestedSymbol}`; // Set aiResponse
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `${aiResponse}\n\nTransaction submitted! Hash: ${recordHash}`
+            },
+            {
+              role: "assistant",
+              content: `/chart ${requestedSymbol}`
+            }
+          ]);
+        } else {
+          // Handle regular responses
+          const aiPrompt = `Analyze the following input: "${input}". 
+          If it contains a transfer command, respond with: "Transfer to: <recipient_address>, Amount: <amount>".
+          Otherwise, respond naturally.`;
+          
+          aiResponse = await contractService.getAIResponse(aiPrompt); // Set aiResponse
+          const recordHash = await contractService.createRecord(input);
+          
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `${aiResponse}\n\nTransaction submitted! Hash: ${recordHash}`
+            }
+          ]);
+        }
       }
 
-      // Create and submit signature (without showing hash)
+      // Create and submit signature
       const signature = await contractService.createSignature(
         await contractService.provider.getSigner(),
         aiResponse,
@@ -232,14 +400,57 @@ function Chat() {
   return (
     <div className="flex justify-center">
       <div className="flex flex-col h-[calc(100vh-73px)] w-full max-w-3xl">
-        {/* Chat messages area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message, index) => (
-            <ChatMessage
-              key={index}
-              role={message.role}
-              content={message.content}
-            />
+            <div key={index}>
+              <ChatMessage
+                role={message.role}
+                content={message.content}
+              />
+              {/* Only show trending tokens for messages with the showTrendingTokens flag */}
+              {message.showTrendingTokens && message.trendingData && message.trendingData.length > 0 && (
+                <div className="mt-2 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                  <h3 className="text-lg font-bold mb-2">
+                    Trending {message.displayType === 'coin' ? 'Coins' : 'Tokens'}:
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    {message.trendingData.map((token, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded-lg">
+                        <div className="flex items-center">
+                          <button
+                            onClick={() => {
+                              // Add the chart message when clicking a token
+                              setMessages(prev => [
+                                ...prev,
+                                {
+                                  role: "assistant",
+                                  content: `Showing chart for ${token.baseCurrency}`
+                                },
+                                {
+                                  role: "assistant",
+                                  content: `/chart ${token.baseCurrency}`
+                                }
+                              ]);
+                              // Scroll to the new chart
+                              setTimeout(scrollToBottom, 100);
+                            }}
+                            className="bg-blue-500 text-white rounded-lg px-4 py-2 mr-4 hover:bg-blue-600"
+                          >
+                            {token.name}
+                          </button>
+                          <span className="text-sm">
+                            Volume: {token.totalVolume}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-500 dark:text-gray-300">
+                          {token.markets}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
