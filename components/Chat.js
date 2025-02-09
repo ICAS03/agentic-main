@@ -6,11 +6,13 @@ import {
 } from "@web3modal/ethers/react";
 import ContractService from "../services/contractService";
 import { ethers, BrowserProvider } from "ethers";
+import fetch from 'node-fetch';
 
 function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [trendingTokens, setTrendingTokens] = useState([]); // State to hold trending tokens
   const messagesEndRef = useRef(null);
   const { walletProvider } = useWeb3ModalProvider();
   const { address, isConnected } = useWeb3ModalAccount();
@@ -74,13 +76,6 @@ function Chat() {
 
       const formattedAmount = ethers.parseEther(amount.toString());
       await contractService.transferFunds(recipient, formattedAmount);
-      /*contractService.contract.on("TransferSuccess", (from, to, amount) => {
-        console.log(
-          `🔔 Transfer Event: ${from} → ${to} | ${ethers.formatEther(
-            amount
-          )} ETH`
-        );
-      });*/
 
       setMessages((prev) => [
         ...prev,
@@ -104,12 +99,92 @@ function Chat() {
     }
   };
 
+  const fetchTrendingTokens = async (limit) => {
+    const coinbaseResponse = await fetch('https://api.exchange.coinbase.com/products/volume-summary');
+    const tokenData = await coinbaseResponse.json();
+
+    // Sort tokens by volume
+    const sortedTokens = tokenData.sort((a, b) => {
+        const aVolume = parseFloat(a.spot_volume_24hour || '0') + 
+                        parseFloat(a.rfq_volume_24hour || '0') + 
+                        parseFloat(a.conversion_volume_24hour || '0');
+        const bVolume = parseFloat(b.spot_volume_24hour || '0') + 
+                        parseFloat(b.rfq_volume_24hour || '0') + 
+                        parseFloat(b.conversion_volume_24hour || '0');
+        return bVolume - aVolume;
+    });
+
+    // Prepare data for AI in a more structured format
+    const topTokens = sortedTokens.slice(0, limit);
+    const formattedTokenData = topTokens.map((token) => {
+        const totalVolume = (
+            parseFloat(token.spot_volume_24hour || '0') + 
+            parseFloat(token.rfq_volume_24hour || '0') + 
+            parseFloat(token.conversion_volume_24hour || '0')
+        ).toFixed(2);
+
+        return {
+            name: token.display_name,
+            baseCurrency: token.base_currency,
+            quoteCurrency: token.quote_currency,
+            totalVolume,
+            markets: token.market_types.join(', '),
+            url: `https://www.coinbase.com/price/${token.base_currency.toLowerCase()}` // Create the URL for trading view
+        };
+    });
+
+    return formattedTokenData;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || !isConnected || !contractService) return;
 
     setIsLoading(true);
     try {
+      // Record user input on-chain
+      const recordHash = await contractService.createRecord(input);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "user",
+          content: `${input}\n\nTransaction recorded on-chain. Hash: ${recordHash}`,
+        },
+      ]);
+
+      // Check if the input is asking for a transfer
+      const transferDetails = input.match(/transfer (\S+) (\d+(\.\d+)?)/);
+      if (transferDetails) {
+        const recipient = transferDetails[1];
+        const amount = transferDetails[2];
+
+        // Call the transfer function
+        await handleTransfer(recipient, amount);
+        return; // Exit early after handling transfer
+      }
+
+      // Check if the input is asking for trending tokens
+      if (input.toLowerCase().includes('trending') && input.toLowerCase().includes('token')) {
+        const numberMatch = input.match(/\d+/);
+        const limit = numberMatch ? parseInt(numberMatch[0]) : 10; // Default to top 10
+        const trendingTokensData = await fetchTrendingTokens(limit);
+        setTrendingTokens(trendingTokensData); // Store trending tokens in state
+
+        // Prepare AI response
+        const aiResponse = `Here are the top ${limit} trending tokens:\n\n`;
+        
+        // Record AI response on-chain
+        const aiRecordHash = await contractService.createRecord(aiResponse);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `${aiResponse}\n\nTransaction recorded on-chain. Hash: ${aiRecordHash}`,
+          },
+        ]);
+        return; // Exit early after handling trending tokens
+      }
+
       // Create task on blockchain
       const { hash, task, taskIndex } = await contractService.createTask(input);
 
@@ -123,72 +198,31 @@ function Chat() {
       ]);
 
       // Prompt AI to analyze the input and check for transfer commands
-      const aiPrompt = `Analyze the following input and check if it contains a transfer command. If it does, please respond with the transfer details in the following format: "Transfer to: <recipient_address>, Amount: <amount>". Input: "${input}". Please do not add any extra information. If it does not contain a transfer command , then just reply to the following input such as saying "Hi , how can I help you".`;
+      const aiPrompt = `Analyze the following input and check if it contains a transfer command. If it does, please respond with the transfer details in the following format: "Transfer to: <recipient_address>, Amount: <amount>". Input: "${input}". Please do not add any extra information. If it does not contain a transfer command, then just reply to the following input such as saying "Hi, how can I help you".`;
       const aiResponse = await contractService.getAIResponse(aiPrompt);
 
       // Log the AI response for debugging
       console.log("AI Response:", aiResponse);
 
-      // Check if the AI response indicates a transfer
-      const transferDetails = aiResponse.match(
-        /Transfer to: (\S+), Amount: (\d+(\.\d+)?)/
-      );
-
       // Check if transferDetails is null
       if (transferDetails) {
         const recipient = transferDetails[1];
         const amount = transferDetails[2];
-        await handleTransfer(recipient, amount); // Call the transfer function
-        return; // Exit early after handling transfer
+
+        // Call the transfer function
+        await handleTransfer(recipient, amount);
       } else {
         console.log("No transfer details found in AI response.");
-        const recordHash = await contractService.createRecord(input); // Create a record of the transaction
+        // Record AI response on-chain
+        const aiRecordHash = await contractService.createRecord(aiResponse);
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: `Transaction recorded on-chain. Hash: ${recordHash}`,
+            content: `${aiResponse}\n\nTransaction recorded on-chain. Hash: ${aiRecordHash}`,
           },
         ]);
       }
-
-      // Create signature for the response
-      const signature = await contractService.createSignature(
-        await contractService.provider.getSigner(),
-        aiResponse,
-        task.contents
-      );
-
-      // Log the arguments for debugging
-      console.log("Responding to task with arguments:", {
-        task: {
-          contents: task.contents, // Ensure this is a simple string
-          taskCreatedBlock: task.taskCreatedBlock, // Ensure this is a uint32
-        },
-        taskIndex, // Ensure this is a uint32
-        response: aiResponse, // Ensure this is a simple string
-        signature, // Ensure this is a bytes string
-      });
-
-      // Submit AI response to blockchain
-      const responseHash = await contractService.respondToTask(
-        {
-          contents: task.contents, // Ensure this is a simple string
-          taskCreatedBlock: task.taskCreatedBlock, // Ensure this is a uint32
-        },
-        taskIndex, // Ensure this is a uint32
-        aiResponse, // Ensure this is a simple string
-        signature // Ensure this is a bytes string
-      );
-
-      // Update messages with AI response and its transaction hash
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `${aiResponse}\n\nTransaction submitted! Hash: ${responseHash}`,
-        },
-      ]);
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
@@ -232,6 +266,26 @@ function Chat() {
           ))}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Render trending tokens as buttons */}
+        {trendingTokens.length > 0 && (
+          <div className="p-4">
+            <h3 className="text-lg font-bold">Trending Tokens:</h3>
+            {trendingTokens.map((token, index) => (
+              <div key={index} className="flex items-center">
+                <button
+                  onClick={() => window.open(token.url, '_blank')}
+                  className="bg-blue-500 text-white rounded-lg px-4 py-2 m-2"
+                >
+                  {token.name}
+                </button>
+                <p className="ml-2">
+                  Base: {token.baseCurrency}, Quote: {token.quoteCurrency}, Volume: {token.totalVolume}, Markets: {token.markets}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Input area */}
         <div className="border-t dark:border-gray-700 p-4">
