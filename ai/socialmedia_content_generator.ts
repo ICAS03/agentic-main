@@ -168,16 +168,18 @@ Topic: ${topic}`;
             // console.log('All social media posts completed');
 
             // return `Content published successfully: ${pageLink}`;
-            const retVal=  JSON.stringify({
-                articleHTML,
-                caption,
-                ctaHTML,
-                imagePrompt,
-                posterHTML,
-                success: true,
-                message: "Content published successfully"
-            });
+
             
+
+            // const retVal=  JSON.stringify({
+            //     caption,
+            //     ctaHTML,
+            //     imagePrompt,
+            //     posterHTML,
+            //     success: true,
+            //     message: "Content published successfully"
+            // });
+            const retVal = `I've generated and published an article on the topic of ${args.topic_of_interest}, you can access it at [this page](http://localhost:3000/crypto-market). \n\nA caption that you can use on Twitter is: ${caption}.`
             console.log(`Returning final response ${retVal}`);
             return retVal;
           } catch (error) {
