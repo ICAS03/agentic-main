@@ -6,7 +6,7 @@ import {
 //   wethActionProvider,
   walletActionProvider,
 //   erc20ActionProvider,
-//   cdpApiActionProvider,
+  cdpApiActionProvider,
   cdpWalletActionProvider,
   pythActionProvider,
 } from '@coinbase/agentkit';
@@ -71,6 +71,10 @@ export default async function handler(req, res) {
       actionProviders: [
         pythActionProvider(),
         walletActionProvider(),
+        cdpApiActionProvider({
+            apiKeyName: process.env.CDP_API_KEY_NAME,
+            apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+          }),
         cdpWalletActionProvider({
           apiKeyName: process.env.CDP_API_KEY_NAME,
           apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
@@ -118,9 +122,13 @@ export default async function handler(req, res) {
     for await (const chunk of response) {
     if ("agent" in chunk) {
         compiledChunks.push(chunk.agent.messages[0].content);
+        compiledChunks.push("\n");
+        
     } else if ("tools" in chunk) {
         compiledChunks.push(chunk.tools.messages[0].content);
-    }
+        compiledChunks.push("\n");
+    } 
+    compiledChunks.push("------------------------------\n");
     }
 
     // Save updated wallet data if needed
@@ -129,7 +137,7 @@ export default async function handler(req, res) {
     console.log('Wallet data saved:', exportedWallet); // Print the saved wallet data
 
     // Return the bot response to the client
-    res.status(200).json({ botResponse: compiledChunks?.join(' \n ') });
+    res.status(200).json({ botResponse: compiledChunks?.join('') });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
