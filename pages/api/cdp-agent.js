@@ -15,6 +15,7 @@ import { HumanMessage } from '@langchain/core/messages';
 import { MemorySaver } from '@langchain/langgraph';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { ChatOpenAI } from '@langchain/openai';
+import { perplexityResearchProvider } from '../../ai/research_action'
 
 dotenv.config();
 const WALLET_DATA_FILE = 'wallet_data.txt';
@@ -79,6 +80,7 @@ export default async function handler(req, res) {
           apiKeyName: process.env.CDP_API_KEY_NAME,
           apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
         }),
+        perplexityResearchProvider(),
       ],
     });
     console.log('AgentKit initialized:', agentKit); // Print the initialized AgentKit
@@ -120,15 +122,18 @@ export default async function handler(req, res) {
     let compiledChunks = [];
 
     for await (const chunk of response) {
-    if ("agent" in chunk) {
-        compiledChunks.push(chunk.agent.messages[0].content);
-        compiledChunks.push("\n");
-        
-    } else if ("tools" in chunk) {
-        compiledChunks.push(chunk.tools.messages[0].content);
-        compiledChunks.push("\n");
-    } 
-    compiledChunks.push("------------------------------\n");
+        console.log('Received chunk:', chunk); // Log the entire chunk to see its structure
+        if ("agent" in chunk) {
+            compiledChunks.push(chunk.agent.messages[0].content);
+            compiledChunks.push("\n");
+            
+        }else if ("tools" in chunk) {
+            const tool = chunk.tools.messages[0];
+            if (tool.name !== "research_latest_news") {
+                compiledChunks.push(tool.content);
+                compiledChunks.push("\n");
+            }
+        }
     }
 
     // Save updated wallet data if needed
