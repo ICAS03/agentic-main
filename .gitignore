@@ -21,7 +21,7 @@ wallet_data.txt
 
 # production
 /build
-
+/dist
 # misc
 .DS_Store
 *.pem

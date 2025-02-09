@@ -1,4 +1,4 @@
-import "@/styles/globals.css";
+import "../styles/globals.css";
 import Web3ModalProvider from "../context/Web3Modal";
 
 function App({ Component, pageProps }) {
