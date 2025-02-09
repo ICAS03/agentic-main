@@ -209,7 +209,8 @@ class ContractService {
   async getAIResponse(content) {
     console.log("Getting AI response for content:", content);
     try {
-      const response = await fetch("/api/ai-response", {
+      // const response = await fetch("/api/ai-response", {
+      const response = await fetch("/api/openai-response", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
