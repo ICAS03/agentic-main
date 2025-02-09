@@ -1,3 +1,72 @@
+# EigenLayer & Coinbase Chatbot
+
+## Overview
+This project consists of a chatbot built on two major platforms:
+
+1. **EigenLayer AVS System**
+   - Conversations and transactions are recorded on-chain.
+   - Users can ask about trending tokens and view insights via TradingView.
+   
+2. **Coinbase Integration**
+   - Leverages Coinbase Agent Kit to connect to Coinbase Wallet.
+   - Implements AI-driven agents such as:
+     - **Research Agent**: Provides insights on crypto and blockchain topics.
+     - **Social Media Agent**: Showcases the latest trending topics.
+   - Uses the **Base Sepolia Network** for operations.
+
+## Branches
+
+### Main Branch
+- Integrates **EigenLayer AVS** with **Agentic AI functionalities**.
+- Supports **on-chain recording** and **trading insights**.
+- Enables querying of trending tokens.
+
+### Content-Generator Branch
+- Implements **CDP tool** and **Coinbase Agent Kit**.
+- Showcases advanced **Agentic AI capabilities**.
+- Provides deep research and social media insights.
+
+## Features
+- **On-Chain Conversations & Transactions** (EigenLayer)
+- **Trading Insights & Token Trends**
+- **Coinbase Wallet Connectivity**
+- **AI-Driven Research & Social Media Analysis**
+- **Base Sepolia Network Deployment**
+
+## Getting Started
+
+### Prerequisites
+- Node.js / Python (depending on implementation)
+- EigenLayer AVS setup
+- Coinbase Wallet
+
+### Installation
+```sh
+# Clone the repository
+git clone https://github.com/your-repo/chatbot.git
+cd chatbot
+
+# Install dependencies
+npm install  # or pip install -r requirements.txt if using Python
+```
+
+### Running the Bot
+```sh
+# Start the chatbot
+npm start  # or python chatbot.py
+```
+
+## Future Enhancements
+- Expand AI functionalities with additional research tools.
+- Integrate more blockchain networks.
+- Improve UI/UX for better user interaction.
+
+## License
+This project is licensed under the MIT License.
+
+## Contact
+For inquiries, reach out to **[Your Contact Email]** or open an issue in the repository.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
 
 ## Getting Started
