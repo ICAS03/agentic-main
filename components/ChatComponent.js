@@ -10,25 +10,36 @@ const MessageType = {
 };
 
 function ChatComponent() {
+  console.log("ChatComponent loaded");
   const [messages, setMessages] = useState([]);
+  console.log("Initial messages state:", messages);
   const [inputValue, setInputValue] = useState('');
+  console.log("Initial input value:", inputValue);
   const [isLoading, setIsLoading] = useState(false);
+  console.log("Initial isLoading state:", isLoading);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    console.log("Effect to scroll to bottom triggered");
     scrollToBottom();
   }, [messages]);
 
   const scrollToBottom = () => {
+    console.log("Scrolling to bottom");
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Handle form submission (calls server endpoint)
   const handleSubmit = async (e) => {
+    console.log("Form submission detected");
     e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading) {
+      console.log("Input value is empty or isLoading is true, exiting");
+      return;
+    }
 
     setIsLoading(true);
+    console.log("Setting isLoading to true");
 
     // Add user message to chat
     const userMessage = {
@@ -37,7 +48,9 @@ function ChatComponent() {
       content: inputValue,
       sender: 'user',
     };
+    console.log("Creating user message:", userMessage);
     setMessages((prev) => [...prev, userMessage]);
+    console.log("Messages state updated with user message");
 
     // Send user input to our server route
     try {
@@ -45,7 +58,9 @@ function ChatComponent() {
         method: 'POST',
         body: JSON.stringify({ userMessage: inputValue }),
       });
+      console.log("Response received from server:", response);
       const data = await response.json();
+      console.log("Parsed data from server:", data);
 
       const botMessage = {
         id: Date.now() + 1,
@@ -53,13 +68,17 @@ function ChatComponent() {
         sender: 'bot',
         content: data.botResponse || 'No response',
       };
+      console.log("Creating bot message:", botMessage);
       setMessages((prev) => [...prev, botMessage]);
+      console.log("Messages state updated with bot message");
     } catch (error) {
       console.error('Error:', error);
     }
 
     setInputValue('');
+    console.log("Resetting input value to empty string");
     setIsLoading(false);
+    console.log("Setting isLoading to false");
   };
 
   // For rendering the chat messages
@@ -101,6 +120,7 @@ function ChatComponent() {
 
 // Renders each message, including optional cards
 const MessageBubble = ({ message }) => {
+  console.log("Rendering MessageBubble for message:", message);
   const isBot = message.sender === 'bot';
 
   return (
@@ -128,6 +148,7 @@ const MessageBubble = ({ message }) => {
 
 // Example Card component for structured responses
 const Card = ({ content }) => {
+  console.log("Rendering Card for content:", content);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
 
   return (

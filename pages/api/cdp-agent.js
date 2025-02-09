@@ -3,10 +3,10 @@ import dotenv from 'dotenv';
 import {
   AgentKit,
   CdpWalletProvider,
-  wethActionProvider,
-  walletActionProvider,
-  erc20ActionProvider,
-  cdpApiActionProvider,
+//   wethActionProvider,
+//   walletActionProvider,
+//   erc20ActionProvider,
+//   cdpApiActionProvider,
   cdpWalletActionProvider,
   pythActionProvider,
 } from '@coinbase/agentkit';
@@ -20,12 +20,15 @@ dotenv.config();
 const WALLET_DATA_FILE = 'wallet_data.txt';
 
 export default async function handler(req, res) {
+  console.log('Request received:', req.method, req.body); // Print the request method and body
   if (req.method !== 'POST') {
+    console.log('Method not allowed:', req.method); // Print the method not allowed
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { userMessage } = JSON.parse(req.body || '{}');
   if (!userMessage) {
+    console.log('No user message provided:', userMessage); // Print the user message provided
     return res.status(400).json({ error: 'No user message provided' });
   }
 
@@ -33,6 +36,7 @@ export default async function handler(req, res) {
   const requiredVars = ['OPENAI_API_KEY', 'CDP_API_KEY_NAME', 'CDP_API_KEY_PRIVATE_KEY'];
   for (const v of requiredVars) {
     if (!process.env[v]) {
+      console.log(`Missing env var: ${v}`); // Print the missing environment variable
       return res.status(500).json({ error: `Missing env var: ${v}` });
     }
   }
@@ -42,6 +46,7 @@ export default async function handler(req, res) {
   if (fs.existsSync(WALLET_DATA_FILE)) {
     try {
       walletDataStr = fs.readFileSync(WALLET_DATA_FILE, 'utf8');
+      console.log('Wallet data read:', walletDataStr); // Print the wallet data read
     } catch (e) {
       console.error('Error reading wallet data:', e);
     }
@@ -54,34 +59,45 @@ export default async function handler(req, res) {
     cdpWalletData: walletDataStr || undefined,
     networkId: process.env.NETWORK_ID || 'base-sepolia',
   };
+//   console.log('AgentKit configuration:', config); // Print the AgentKit configuration
 
   try {
     // Init wallet + agent
     const walletProvider = await CdpWalletProvider.configureWithWallet(config);
+    console.log('Wallet provider initialized:', walletProvider); // Print the initialized wallet provider
+
     const agentKit = await AgentKit.from({
       walletProvider,
       actionProviders: [
         wethActionProvider(),
         pythActionProvider(),
         walletActionProvider(),
-        erc20ActionProvider(),
-        cdpApiActionProvider({
-          apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
+        // erc20ActionProvider(),
+        // cdpApiActionProvider({
+        //   apiKeyName: process.env.CDP_API_KEY_NAME,
+        //   apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        // }),
         cdpWalletActionProvider({
           apiKeyName: process.env.CDP_API_KEY_NAME,
           apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
         }),
       ],
     });
+    console.log('AgentKit initialized:', agentKit); // Print the initialized AgentKit
 
     const tools = await getLangChainTools(agentKit);
+    console.log('LangChain tools initialized:', tools); // Print the initialized LangChain tools
     const memory = new MemorySaver();
+    console.log('Memory saver initialized:', memory); // Print the initialized memory saver
+    const agentConfig = { configurable: { thread_id: "CDP AgentKit Chatbot Example!" } };
+
     const llm = new ChatOpenAI({
       model: 'gpt-4o-mini',
       openAIApiKey: process.env.OPENAI_API_KEY,
     });
+
+
+    console.log('ChatOpenAI initialized:', llm); // Print the initialized ChatOpenAI
 
     // Create the agent
     const agent = createReactAgent({
@@ -99,16 +115,29 @@ export default async function handler(req, res) {
       docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
       restating your tools' descriptions unless it is explicitly requested.
       `,    });
+    // console.log('Agent created:', agent); // Print the created agent
 
     // Get the agent response
-    const response = await agent.call({ messages: [new HumanMessage(userMessage)] });
+    const response = await agent.stream({ messages: [new HumanMessage(userMessage)] },agentConfig);
+    // console.log('Agent response received:', response); // Print the agent response
+
+    let compiledChunks = [];
+
+    for await (const chunk of response) {
+    if ("agent" in chunk) {
+        compiledChunks.push(chunk.agent.messages[0].content);
+    } else if ("tools" in chunk) {
+        compiledChunks.push(chunk.tools.messages[0].content);
+    }
+    }
 
     // Save updated wallet data if needed
     const exportedWallet = await walletProvider.exportWallet();
     fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
+    console.log('Wallet data saved:', exportedWallet); // Print the saved wallet data
 
     // Return the bot response to the client
-    res.status(200).json({ botResponse: response?.content || 'No response' });
+    res.status(200).json({ botResponse: compiledChunks?.join(' \n ') });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
