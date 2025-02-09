@@ -14,24 +14,33 @@ const ABI = [
 
 class ContractService {
   constructor() {
+    console.log("Initializing ContractService...");
     if (!window.ethereum) {
+      console.error("MetaMask not found! Please install MetaMask.");
       throw new Error("MetaMask not found! Please install MetaMask.");
     }
     // Initialize with MetaMask provider
+    console.log("Initializing provider with MetaMask...");
     this.provider = new ethers.BrowserProvider(window.ethereum);
     this.contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, this.provider);
+    console.log("Contract initialized with address:", CONTRACT_ADDRESS);
   }
 
   async ensureHoleskyNetwork() {
+    console.log("Ensuring Holesky network...");
     try {
       // Request network switch to Holesky
+      console.log("Requesting network switch to Holesky...");
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: "0x4268" }], // 17000 in hex
       });
+      console.log("Network switched to Holesky successfully.");
     } catch (switchError) {
+      console.error("Error switching network:", switchError);
       // If Holesky network is not added, add it
       if (switchError.code === 4902) {
+        console.log("Holesky network not found, adding it...");
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
           params: [
@@ -44,13 +53,16 @@ class ContractService {
             },
           ],
         });
+        console.log("Holesky network added successfully.");
       } else {
+        console.error("Error during network switch:", switchError);
         throw switchError;
       }
     }
   }
 
   async createRecord(content) {
+    console.log("Creating record with content:", content);
     try {
       await this.ensureHoleskyNetwork();
       const signer = await this.provider.getSigner();
@@ -71,6 +83,7 @@ class ContractService {
   }
 
   async transferFunds(recipient, amount) {
+    console.log("Transferring funds to:", recipient, "Amount:", amount);
     try {
       await this.ensureHoleskyNetwork();
       const signer = await this.provider.getSigner();
@@ -90,15 +103,18 @@ class ContractService {
   }
 
   async createSignature(signer, response, contents) {
+    console.log("Creating signature for response:", response, "and contents:", contents);
     const messageHash = ethers.solidityPackedKeccak256(
       ["string", "string"],
       [response, contents]
     );
     const signature = await signer.signMessage(ethers.getBytes(messageHash));
+    console.log("Signature created:", signature);
     return signature;
   }
 
   async createTask(content) {
+    console.log("Creating task with content:", content);
     try {
       await this.ensureHoleskyNetwork();
       const signer = await this.provider.getSigner();
@@ -122,6 +138,7 @@ class ContractService {
 
           if (parsedLog && parsedLog.name === "NewTaskCreated") {
             taskIndex = parsedLog.args[0];
+            console.log("Parsed task index from log:", taskIndex);
             break;
           }
         } catch (e) {
@@ -154,16 +171,12 @@ class ContractService {
   }
 
   async respondToTask(task, taskIndex, response) {
+    console.log("Responding to task:", task, "with index:", taskIndex, "and response:", response);
     try {
       await this.ensureHoleskyNetwork();
       const signer = await this.provider.getSigner();
 
-      console.log("Responding to task on Holesky:", {
-        task,
-        taskIndex,
-        response,
-      });
-
+      console.log("Creating signature for response...");
       const signature = await this.createSignature(
         signer,
         response,
@@ -173,6 +186,7 @@ class ContractService {
 
       // Convert taskIndex to a regular number if it's a BigInt
       const taskIndexNumber = Number(taskIndex); // Ensure this is a number
+      console.log("Converted taskIndex to number:", taskIndexNumber);
 
       // Call the respondToTask function with the correct types
       const tx = await contractWithSigner.respondToTask(
@@ -184,6 +198,7 @@ class ContractService {
       );
 
       const receipt = await tx.wait();
+      console.log("Response to task successful, transaction hash:", tx.hash);
       return tx.hash;
     } catch (error) {
       console.error("Error responding to task:", error);
@@ -192,6 +207,7 @@ class ContractService {
   }
 
   async getAIResponse(content) {
+    console.log("Getting AI response for content:", content);
     try {
       const response = await fetch("/api/ai-response", {
         method: "POST",
@@ -202,10 +218,12 @@ class ContractService {
       });
 
       if (!response.ok) {
+        console.error("Failed to get AI response, status:", response.status);
         throw new Error("Failed to get AI response");
       }
 
       const data = await response.json();
+      console.log("AI response received:", data.response);
       return data.response;
     } catch (error) {
       console.error("AI Response Error:", error);
@@ -214,13 +232,21 @@ class ContractService {
   }
 
   listenToNewTasks(callback) {
+    console.log("Listening to new tasks...");
     this.contract.on("NewTaskCreated", callback);
-    return () => this.contract.off("NewTaskCreated", callback);
+    return () => {
+      console.log("Stopping listening to new tasks...");
+      this.contract.off("NewTaskCreated", callback);
+    };
   }
 
   listenToResponses(callback) {
+    console.log("Listening to task responses...");
     this.contract.on("TaskResponseReceived", callback);
-    return () => this.contract.off("TaskResponseReceived", callback);
+    return () => {
+      console.log("Stopping listening to task responses...");
+      this.contract.off("TaskResponseReceived", callback);
+    };
   }
 }
 

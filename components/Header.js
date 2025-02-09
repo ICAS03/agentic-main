@@ -41,7 +41,7 @@ function Header() {
     return (
         <nav className="w-full flex justify-between items-center p-4 border-b bg-white dark:bg-gray-900">
             <div className="font-bold text-xl text-gray-900 dark:text-white">
-                AI
+            AI3 Nexus
             </div>
 
             <div className="flex items-center gap-4">
