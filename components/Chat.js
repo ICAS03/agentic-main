@@ -175,6 +175,8 @@ function Chat() {
         
         // Record AI response on-chain
         const aiRecordHash = await contractService.createRecord(aiResponse);
+        
+        // Add the AI response to messages after recording
         setMessages((prev) => [
           ...prev,
           {
@@ -182,6 +184,18 @@ function Chat() {
             content: `${aiResponse}\n\nTransaction recorded on-chain. Hash: ${aiRecordHash}`,
           },
         ]);
+        
+        // Render trending tokens as part of the chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: trendingTokensData.map(token => 
+              `${token.name} (Base: ${token.baseCurrency}, Quote: ${token.quoteCurrency}, Volume: ${token.totalVolume}, Markets: ${token.markets})`
+            ).join('\n'),
+          },
+        ]);
+        
         return; // Exit early after handling trending tokens
       }
 
@@ -265,9 +279,9 @@ function Chat() {
             </div>
           ))}
           <div ref={messagesEndRef} />
-        </div>
+        
 
-        {/* Render trending tokens as buttons */}
+        {/* Render trending tokens as buttons within the chat */}
         {trendingTokens.length > 0 && (
           <div className="p-4">
             <h3 className="text-lg font-bold">Trending Tokens:</h3>
@@ -286,6 +300,7 @@ function Chat() {
             ))}
           </div>
         )}
+        </div>
 
         {/* Input area */}
         <div className="border-t dark:border-gray-700 p-4">
