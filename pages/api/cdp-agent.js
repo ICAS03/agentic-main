@@ -16,6 +16,7 @@ import { MemorySaver } from '@langchain/langgraph';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { ChatOpenAI } from '@langchain/openai';
 import { perplexityResearchProvider } from '../../ai/research_action'
+import { contentGenerationProvider } from '../../ai/socialmedia_content_generator'
 
 dotenv.config();
 const WALLET_DATA_FILE = 'wallet_data.txt';
@@ -81,6 +82,7 @@ export default async function handler(req, res) {
           apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
         }),
         perplexityResearchProvider(),
+        contentGenerationProvider()
       ],
     });
     console.log('AgentKit initialized:', agentKit); // Print the initialized AgentKit

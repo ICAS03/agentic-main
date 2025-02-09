@@ -7,7 +7,7 @@ dotenv.config();
 const PERPLEXITY_KEY = process.env.PERPLEXITY_KEY
 // Define schema for user query
 const PerplexityResearchSchema = z.object({
-  query: z.string().describe("Question to research"),
+  query: z.string().describe("Accurately identify and describe the user's query and the core topic of research. Ensure clarity in understanding the user's intent, including any specific details, context, or areas of focus mentioned."),
 });
 
 export class PerplexityResearchProvider extends ActionProvider {
@@ -22,7 +22,7 @@ export class PerplexityResearchProvider extends ActionProvider {
       return [
         {
           name: "research_latest_news",
-          description: "Calls Perplexity AI to answer user query with latest info",
+          description: "Do not use for content generation. Strictly for research-only queries using Perplexity AI. Provide accurate, up-to-date information based on the user's query.",
           schema: PerplexityResearchSchema,
           invoke: async (args) => {
             try {
@@ -32,17 +32,7 @@ export class PerplexityResearchProvider extends ActionProvider {
               const body = {
                 model: "sonar",
                 messages: [
-                  { role: "system", content: `You are a helpful AI market trading assitant.
-
-Rules:
-1. Provide only the final answer. It is important that you do not include any explanation on the steps below.
-2. Do not show the intermediate steps information.
-
-Steps:
-1. Decide if the answer should be a brief trading recommendation, a market insight, or a list of strategies/suggestions.
-2. If it’s a list of strategies or suggestions, start with a succinct overview based on the query.
-3. Follow with a list of strategies or suggestions, each separated by two newlines, reflecting the best practices and knowledge in the trading and market context.
-`},
+                  { role: "system", content: `You are a knowledgeable AI market trading assistant. By default, always fetch and incorporate the latest 2025 data, news, and market developments into your responses unless the user specifies otherwise. Adapt your answers to thoroughly understand and address each user's request with tailored, insightful, and data-driven solutions. Provide clear, concise, and actionable advice, leveraging relevant market trends and expert analysis to effectively assist users.`},
                   { role: "user", content: args.query },
                 ],
 
