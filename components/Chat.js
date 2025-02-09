@@ -362,41 +362,74 @@ function Chat() {
             }
           ]);
         } else {
-          // Handle regular responses
-          const aiPrompt = `Analyze the following input: "${input}". 
-          If it contains a transfer command, respond with: "Transfer to: <recipient_address>, Amount: <amount>".
-          Otherwise, respond naturally.`;
-          
-          aiResponse = await contractService.getAIResponse(aiPrompt); // Set aiResponse
-          const recordHash = await contractService.createRecord(input);
-          
+          const aiPrompt = `Analyze the following input and check if it contains a transfer command. If it does, please respond with the transfer details in the following format: "Transfer to: <recipient_address>, Amount: <amount>". Input: "${input}". Please do not add any extra information. If it does not contain a transfer command , then just reply to the following input such as saying "Hi , how can I help you".`;
+          const aiResponse = await contractService.getAIResponse(aiPrompt);
+    
+          // Log the AI response for debugging
+          console.log("AI Response:", aiResponse);
+    
+          // Check if the AI response indicates a transfer
+          const transferDetails = aiResponse.match(
+            /Transfer to: (\S+), Amount: (\d+(\.\d+)?)/
+          );
+    
+          // Check if transferDetails is null
+          if (transferDetails) {
+            const recipient = transferDetails[1];
+            const amount = transferDetails[2];
+            await handleTransfer(recipient, amount); // Call the transfer function
+            return; // Exit early after handling transfer
+          } else {
+            console.log("No transfer details found in AI response.");
+            const recordHash = await contractService.createRecord(input); // Create a record of the transaction
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `Transaction recorded on-chain. Hash: ${recordHash}`,
+              },
+            ]);
+          }
+    
+          // Create signature for the response
+          const signature = await contractService.createSignature(
+            await contractService.provider.getSigner(),
+            aiResponse,
+            task.contents
+          );
+    
+          // Log the arguments for debugging
+          console.log("Responding to task with arguments:", {
+            task: {
+              contents: task.contents, // Ensure this is a simple string
+              taskCreatedBlock: task.taskCreatedBlock, // Ensure this is a uint32
+            },
+            taskIndex, // Ensure this is a uint32
+            response: aiResponse, // Ensure this is a simple string
+            signature, // Ensure this is a bytes string
+          });
+    
+          // Submit AI response to blockchain
+          const responseHash = await contractService.respondToTask(
+            {
+              contents: task.contents, // Ensure this is a simple string
+              taskCreatedBlock: task.taskCreatedBlock, // Ensure this is a uint32
+            },
+            taskIndex, // Ensure this is a uint32
+            aiResponse, // Ensure this is a simple string
+            signature // Ensure this is a bytes string
+          );
+    
+          // Update messages with AI response and its transaction hash
           setMessages((prev) => [
             ...prev,
             {
               role: "assistant",
-              content: `${aiResponse}\n\nTransaction submitted! Hash: ${recordHash}`
-            }
+              content: `${aiResponse}\n\nTransaction submitted! Hash: ${responseHash}`,
+            },
           ]);
         }
       }
-
-      // Create and submit signature
-      const signature = await contractService.createSignature(
-        await contractService.provider.getSigner(),
-        aiResponse,
-        task.contents
-      );
-
-      await contractService.respondToTask(
-        {
-          contents: task.contents,
-          taskCreatedBlock: task.taskCreatedBlock,
-        },
-        taskIndex,
-        aiResponse,
-        signature
-      );
-
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
