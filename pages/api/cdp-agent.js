@@ -129,11 +129,10 @@ export default async function handler(req, res) {
             
         }else if ("tools" in chunk) {
             const tool = chunk.tools.messages[0];
-            if (tool.name !== "research_latest_news") {
-                compiledChunks.push(tool.content);
-                compiledChunks.push("\n");
-            }
+            compiledChunks.push(tool.content);
+            compiledChunks.push("\n");
         }
+        compiledChunks.push("______________________________\n");
     }
 
     // Save updated wallet data if needed

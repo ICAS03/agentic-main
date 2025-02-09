@@ -26,6 +26,9 @@ export class PerplexityResearchProvider extends ActionProvider {
           schema: PerplexityResearchSchema,
           invoke: async (args) => {
             try {
+              // fetch history 
+              // ai analyse
+              // give suggestion
               const body = {
                 model: "sonar",
                 messages: [
@@ -56,7 +59,7 @@ Steps:
                 }
               );
   
-              return `${JSON.stringify(response.data.choices[0].message.content)}`;
+              return `${JSON.stringify(response.data.choices[0].message.content)}\nCitations:\n${response.data.citations.join('\n')}`;
             } catch (error) {
               return `Error from Perplexity AI: ${error}`;
             }
